@@ -1,14 +1,16 @@
 name: mlflow
 services:
   postgres:
-    image: postgres:16
+    image: postgres:18
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:5433:5432"
     environment:
       POSTGRES_DB: mlflow
       POSTGRES_USER: mlflow
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mlflow -d mlflow"]
       interval: 5s
@@ -16,8 +18,11 @@ services:
       retries: 20
 
   mlflow:
-    build: .
-    image: mlflow-local:3.5.0
+    build:
+      context: .
+      platforms:
+        - linux/amd64
+    image: mlflow-local:3.17.2
     restart: unless-stopped
     depends_on:
       postgres:
@@ -35,7 +40,13 @@ services:
     volumes:
       - ${ARTIFACTS_HOST_PATH:-./artifacts}:/mlflow/artifacts
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health',timeout=3)"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:5000/health',timeout=3)",
+        ]
       interval: 10s
       timeout: 5s
       retries: 15
