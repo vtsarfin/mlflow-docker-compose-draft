@@ -1,0 +1,44 @@
+name: mlflow
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mlflow
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow -d mlflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mlflow:
+    build: .
+    image: mlflow-local:3.5.0
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        export MLFLOW_BACKEND_STORE_URI="postgresql+psycopg2://mlflow:$$(python -c 'import os,urllib.parse;print(urllib.parse.quote(os.environ["POSTGRES_PASSWORD"],safe=""))')@postgres:5432/mlflow"
+        exec mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri "$$MLFLOW_BACKEND_STORE_URI" --serve-artifacts --artifacts-destination /mlflow/artifacts --allowed-hosts "localhost:5000,127.0.0.1:5000,${MLFLOW_EXTRA_ALLOWED_HOSTS:-localhost:5000}"
+    ports:
+      - "127.0.0.1:${MLFLOW_PORT:-5000}:5000"
+    volumes:
+      - ${ARTIFACTS_HOST_PATH:-./artifacts}:/mlflow/artifacts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health',timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+
+volumes:
+  postgres_data:

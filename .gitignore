@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local MLflow deployment
+.env
+artifacts/*
+!artifacts/.gitkeep
+.venv/
+mlflow-images.tar
